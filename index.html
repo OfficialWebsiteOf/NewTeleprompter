@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="bn">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Style Teleprompter</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #6ef500;
+            --sidebar-color: #202c33;
+            --accent-color: #00a884;
+            --title-color: #ffd519;
+            --text-color: #e9edef;
+            --scroll-speed: 3;
+            --font-size: 50;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+
+        /* Fullscreen mode */
+        .fullscreen-mode {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            background: #0b141a;
+        }
+
+        /* Sidebar - স্লাইড ইফেক্ট সহ */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -400px;
+            width: 380px;
+            height: 100%;
+            background: var(--sidebar-color);
+            border-right: 1px solid #374045;
+            display: flex;
+            flex-direction: column;
+            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            box-shadow: 5px 0 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .sidebar.open {
+            left: 0;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 168, 132, 0.3);
+        }
+
+        .sidebar-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        .sidebar-toggle.fullscreen-hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: var(--sidebar-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #374045;
+        }
+
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .chat-item {
+            padding: 15px;
+            background: #2a3942;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .chat-item:hover {
+            background: #374045;
+            transform: translateX(5px);
+        }
+
+        .chat-item .del-icon {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            color: #ef5350;
+            background: rgba(0, 0, 0, 0.5);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            display: none;
+        }
+
+        .chat-item:hover .del-icon {
+            display: flex;
+        }
+
+        /* Main Display - Fullscreen কনটেইনার */
+        .main-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            background: #0b141a;
+            transition: all 0.3s;
+        }
+
+        /* Top Controls */
+        #top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background: rgba(32, 44, 51, 0.95);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: transform 0.5s, opacity 0.5s;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #374045;
+        }
+
+        .hide-bar {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .control-btn {
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            min-width: 100px;
+            font-size: 16px;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 168, 132, 0.3);
+        }
+
+        .math-btn {
+            background: #333;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            color: white;
+            border: 1px solid #555;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+
+        .math-btn:hover {
+            background: var(--accent-color);
+            transform: scale(1.1);
+        }
+
+        /* Color Picker Styles */
+        .color-control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: rgba(42, 57, 66, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .color-picker-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .color-picker-btn:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .color-picker-btn.selected {
+            border: 3px solid var(--accent-color);
+            transform: scale(1.1);
+        }
+
+        /* Prompter Area */
+        #prompter-window {
+            height: 100vh;
+            overflow-y: scroll;
+            padding: 45vh 50px;
+            scrollbar-width: none;
+            text-align: center;
+            transition: padding 0.3s;
+        }
+
+        #prompter-window::-webkit-scrollbar {
+            display: none;
+        }
+
+        #script-content {
+            font-size: calc(var(--font-size) * 1px);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            transition: all 0.3s;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .guide-line {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: rgba(0, 168, 132, 0.6);
+            pointer-events: none;
+            z-index: 50;
+            box-shadow: 0 0 20px rgba(0, 168, 132, 0.3);
+        }
+
+        /* Modal / Popup */
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222e35;
+            width: 90%;
+            max-width: 600px;
+            padding: 25px;
+            border-radius: 15px;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid var(--accent-color);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .input-group {
+            background: #2a3942;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            border-left: 5px solid var(--accent-color);
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #111b21;
+            color: white;
+            border: 2px solid #374045;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.2);
+        }
+
+        /* Countdown */
+        #countdown {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 200px;
+            color: var(--accent-color);
+            font-weight: bold;
+            display: none;
+            z-index: 3000;
+            text-shadow: 0 0 30px rgba(0, 168, 132, 0.7);
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            to {
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+        }
+
+        /* Script Display Modes */
+        .title-mode .section-title {
+            font-size: calc(var(--font-size) * 1.2px);
+            color: var(--section-color);
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(0, 168, 132, 0.3);
+        }
+
+        .detail-mode .section-detail {
+            font-size: calc(var(--font-size) * 1px);
+            margin: 30px 0;
+            line-height: 1.8;
+            border: white 0.5px dotted;
+        }
+
+        /* Settings Panel */
+        #settings-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 350px;
+            height: 100%;
+            background: rgba(32, 44, 51, 0.98);
+            padding: 20px;
+            z-index: 1500;
+            transition: right 0.3s;
+            backdrop-filter: blur(10px);
+            overflow-y: auto;
+        }
+
+        #settings-panel.open {
+            right: 0;
+        }
+
+        .settings-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .settings-toggle.fullscreen-hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .setting-group {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: rgba(42, 57, 66, 0.5);
+            border-radius: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                left: -100%;
+            }
+
+            #top-bar {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .control-btn {
+                padding: 8px 15px;
+                min-width: 80px;
+                font-size: 14px;
+            }
+
+            #prompter-window {
+                padding: 40vh 20px;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            #prompter-window {
+                padding: 30vh 20px;
+            }
+
+            #script-content {
+                font-size: 40px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+    <button class="settings-toggle" id="settingsToggle">⚙️</button>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2 style="color: var(--accent-color);">📁 Script Library</h2>
+            <button class="control-btn" onclick="openModal()">+ New Script</button>
+        </div>
+        <div class="chat-list" id="chatList">
+            <!-- Scripts will be loaded here -->
+        </div>
+    </div>
+
+    <div id="settings-panel">
+        <h2 style="color: var(--accent-color); margin-bottom: 20px;">⚙️ Settings</h2>
+
+        <div class="setting-group">
+            <h3>Countdown Timer</h3>
+            <select id="countdownTime" style="width: 100%;">
+                <option value="0">No Countdown</option>
+                <option value="3" selected>3 Seconds</option>
+                <option value="5">5 Seconds</option>
+                <option value="10">10 Seconds</option>
+            </select>
+        </div>
+
+        <div class="setting-group">
+            <h3>Display Mode</h3>
+            <select id="displayMode" style="width: 100%;" onchange="changeDisplayMode()">
+                <option value="combined">Titles + Details Combined</option>
+                <option value="titles-only">Titles Only</option>
+                <option value="details-only">Details Only</option>
+            </select>
+        </div>
+
+        <div class="setting-group">
+            <h3>Colors</h3>
+            <div style="margin-bottom: 15px;">
+                <label>Text Color:</label>
+                <div class="color-control-group">
+                    <div class="color-picker-btn selected" style="background: #e9edef;"
+                        onclick="changeColor('text', '#e9edef')"></div>
+                    <div class="color-picker-btn" style="background: #ffffff;" onclick="changeColor('text', '#ffffff')">
+                    </div>
+                    <div class="color-picker-btn" style="background: #00a884;" onclick="changeColor('text', '#00a884')">
+                    </div>
+                    <div class="color-picker-btn" style="background: #ff6b6b;" onclick="changeColor('text', '#ff6b6b')">
+                    </div>
+                    <div class="color-picker-btn" style="background: #4ecdc4;" onclick="changeColor('text', '#4ecdc4')">
+                    </div>
+                    <input type="color" id="textColorPicker" onchange="changeColor('text', this.value)"
+                        style="width: 40px; height: 40px;">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label>Background Color:</label>
+                <div class="color-control-group">
+                    <div class="color-picker-btn selected" style="background: #0b141a;"
+                        onclick="changeColor('bg', '#0b141a')"></div>
+                    <div class="color-picker-btn" style="background: #111b21;" onclick="changeColor('bg', '#111b21')">
+                    </div>
+                    <div class="color-picker-btn" style="background: #1a1a2e;" onclick="changeColor('bg', '#1a1a2e')">
+                    </div>
+                    <div class="color-picker-btn" style="background: #000000;" onclick="changeColor('bg', '#000000')">
+                    </div>
+                    <div class="color-picker-btn" style="background: #162447;" onclick="changeColor('bg', '#162447')">
+                    </div>
+                    <input type="color" id="bgColorPicker" onchange="changeColor('bg', this.value)"
+                        style="width: 40px; height: 40px;">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label>Guide Line Color:</label>
+                <div class="color-control-group">
+                    <div class="color-picker-btn selected" style="background: #00a884;"
+                        onclick="changeColor('guide', '#00a884')"></div>
+                    <div class="color-picker-btn" style="background: #ffd166;"
+                        onclick="changeColor('guide', '#ffd166')"></div>
+                    <div class="color-picker-btn" style="background: #ef476f;"
+                        onclick="changeColor('guide', '#ef476f')"></div>
+                    <div class="color-picker-btn" style="background: #118ab2;"
+                        onclick="changeColor('guide', '#118ab2')"></div>
+                    <div class="color-picker-btn" style="background: #ffffff;"
+                        onclick="changeColor('guide', '#ffffff')"></div>
+                    <input type="color" id="guideColorPicker" value="#00a884"
+                        onchange="changeColor('guide', this.value)" style="width: 40px; height: 40px;">
+                </div>
+            </div>
+        </div>
+
+        <button class="control-btn" onclick="closeSettings()"
+            style="width: 100%; margin-top: 20px; background: #666;">Close Settings</button>
+    </div>
+
+    <div class="main-container" id="mainContainer">
+        <div id="top-bar">
+            <button class="control-btn" id="startBtn" onclick="startWithCountdown()">START</button>
+
+            <div
+                style="display: flex; align-items: center; gap: 8px; background: rgba(42, 57, 66, 0.5); padding: 8px 12px; border-radius: 8px;">
+                <span>Speed:</span>
+                <button class="math-btn" onclick="adjustSpeed(-1)">-</button>
+                <input type="range" id="speedRange" min="1" max="20" value="3" style="width: 100px;">
+                <span id="speedValue">3</span>
+                <button class="math-btn" onclick="adjustSpeed(1)">+</button>
+            </div>
+
+            <div
+                style="display: flex; align-items: center; gap: 8px; background: rgba(42, 57, 66, 0.5); padding: 8px 12px; border-radius: 8px;">
+                <span>Font:</span>
+                <button class="math-btn" onclick="adjustFont(-5)">-</button>
+                <input type="range" id="fontRange" min="20" max="100" value="50" style="width: 100px;">
+                <span id="fontValue">50</span>
+                <button class="math-btn" onclick="adjustFont(5)">+</button>
+            </div>
+
+            <button class="control-btn" style="background:#555" onclick="toggleMirror()">🪞 Mirror</button>
+            <button class="control-btn" style="background:#666" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+        </div>
+
+        <div class="guide-line"></div>
+        <div id="prompter-window">
+            <div id="script-content">
+                <h1 style="color: var(--accent-color);">Welcome to WhatsApp Style Teleprompter</h1>
+                <p style="font-size: 40px; opacity: 0.8; margin-top: 30px;">
+                    Select a script from the sidebar or create a new one to get started.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="countdown"></div>
+
+    <div id="modal-overlay">
+        <div class="modal">
+            <h2 style="color: var(--accent-color);">➕ Create New Script</h2>
+            <input type="text" id="mainTitle" placeholder="📝 Main Project Title">
+
+            <div style="margin: 20px 0;">
+                <label><strong>Display Format:</strong></label>
+                <select id="scriptFormat" style="width: 100%; margin-top: 10px;">
+                    <option value="combined">Titles and Details Together</option>
+                    <option value="separate">Titles First, Then Details</option>
+                </select>
+            </div>
+
+            <hr style="border-color: #374045; margin: 20px 0;">
+
+            <div id="dynamicInputs"></div>
+            <button class="control-btn" onclick="addMoreFields()"
+                style="background:#34b7f1; width: 100%; margin-top: 15px; font-size: 16px;">
+                ➕ Add Section
+            </button>
+
+            <div style="display: flex; gap: 15px; margin-top: 25px;">
+                <button class="control-btn" onclick="saveToFirebase()" style="flex: 1; font-size: 16px;">
+                    💾 Save Script
+                </button>
+                <button class="control-btn" onclick="closeModal()" style="background:#666; font-size: 16px;">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAfDYpYM5FB0gYXW_jJGe47Q-sWFFGOeGc",
+            authDomain: "telepromter-22283.firebaseapp.com",
+            databaseURL: "https://telepromter-22283-default-rtdb.firebaseio.com",
+            projectId: "telepromter-22283",
+            storageBucket: "telepromter-22283.firebasestorage.app",
+            messagingSenderId: "1092297149043",
+            appId: "1:1092297149043:web:80dd50055572b72e16b806"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Global Variables
+        let isScrolling = false;
+        let scrollSpeed = 3;
+        let currentAnimation;
+        let autoHideTimer;
+        let fullscreenMode = false;
+        let countdownDuration = 3;
+        let displayMode = 'combined';
+
+        // Sidebar Toggle
+        document.getElementById('sidebarToggle').addEventListener('click', function () {
+            document.getElementById('sidebar').classList.toggle('open');
+        });
+
+        // Settings Toggle
+        document.getElementById('settingsToggle').addEventListener('click', function () {
+            document.getElementById('settings-panel').classList.toggle('open');
+        });
+
+        function closeSettings() {
+            document.getElementById('settings-panel').classList.remove('open');
+        }
+
+        // Fullscreen Toggle
+        function toggleFullscreen() {
+            fullscreenMode = !fullscreenMode;
+            const mainContainer = document.getElementById('mainContainer');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const settingsToggle = document.getElementById('settingsToggle');
+
+            if (fullscreenMode) {
+                mainContainer.classList.add('fullscreen-mode');
+                sidebarToggle.classList.add('fullscreen-hide');
+                settingsToggle.classList.add('fullscreen-hide');
+                document.getElementById('top-bar').classList.add('hide-bar');
+                hideAddressBar();
+            } else {
+                mainContainer.classList.remove('fullscreen-mode');
+                sidebarToggle.classList.remove('fullscreen-hide');
+                settingsToggle.classList.remove('fullscreen-hide');
+                showControls();
+                showAddressBar();
+            }
+        }
+
+        // Hide address bar on mobile
+        function hideAddressBar() {
+            window.scrollTo(0, 1);
+            setTimeout(() => {
+                if (window.innerHeight < screen.height) {
+                    window.scrollTo(0, 1);
+                }
+            }, 0);
+        }
+
+        function showAddressBar() {
+            window.scrollTo(0, 0);
+        }
+
+        // Color Management
+        function changeColor(type, color) {
+            const root = document.documentElement;
+            const guideLine = document.querySelector('.guide-line');
+            const colorPickers = document.querySelectorAll('.color-picker-btn');
+
+            // Remove selected class from all buttons
+            colorPickers.forEach(btn => btn.classList.remove('selected'));
+
+            // Add selected class to clicked button
+            event.target.classList.add('selected');
+
+            switch (type) {
+                case 'text':
+                    document.getElementById('script-content').style.color = color;
+                    root.style.setProperty('--text-color', color);
+                    break;
+                case 'bg':
+                    console.log(color)
+                    document.getElementById('mainContainer').style.color = color;
+                    root.style.setProperty('--bg-color', color);
+                    break;
+                case 'guide':
+                    guideLine.style.backgroundColor = color;
+                    break;
+            }
+        }
+
+        // Display Mode Change
+        function changeDisplayMode() {
+            displayMode = document.getElementById('displayMode').value;
+            const scriptContent = document.getElementById('script-content');
+            console.log(displayMode)
+            // Update display based on selected mode
+            scriptContent.className = displayMode + '-mode';
+            if(displayMode === "combined"){
+                return
+            }
+            else if(displayMode === "titles-only"){
+                document.getElementsByClassName("title-mode").style.display="block";
+                document.getElementsByClassName("detail-mode").style.display="none";                
+            }
+            else if(displayMode === "details-only"){
+                document.getElementsByClassName("title-mode").style.display="none";
+                document.getElementsByClassName("detail-mode").style.display="block";                
+            }
+        }
+
+        // Modal Functions
+        function openModal() {
+            document.getElementById('modal-overlay').style.display = 'block';
+            document.getElementById('dynamicInputs').innerHTML = '';
+            addMoreFields();
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').style.display = 'none';
+        }
+
+        function addMoreFields(title = '', detail = '') {
+            const div = document.createElement('div');
+            div.className = 'input-group';
+            div.innerHTML = `
+                <input type="text" class="sub-title" placeholder="📋 Section Title" value="${title}">
+                <textarea class="sub-detail" placeholder="📝 Section Content" rows="4">${detail}</textarea>
+                <button style="color:#ef5350; background:none; border:none; cursor:pointer; padding: 5px 10px; border-radius: 5px;" 
+                        onclick="this.parentElement.remove()">
+                    🗑️ Remove Section
+                </button>
+            `;
+            document.getElementById('dynamicInputs').appendChild(div);
+        }
+
+        // Save to Firebase
+        function saveToFirebase() {
+            const title = document.getElementById('mainTitle').value;
+            if (!title) {
+                alert("Please enter a main title!");
+                return;
+            }
+
+            const subTitles = document.querySelectorAll('.sub-title');
+            const subDetails = document.querySelectorAll('.sub-detail');
+            const sections = [];
+
+            subTitles.forEach((st, i) => {
+                sections.push({
+                    title: st.value,
+                    detail: subDetails[i].value
+                });
+            });
+
+            const id = Date.now();
+            const format = document.getElementById('scriptFormat').value;
+
+            db.ref('chats/' + id).set({
+                mainTitle: title,
+                sections: sections,
+                format: format,
+                createdAt: new Date().toISOString()
+            });
+
+            closeModal();
+            alert("Script saved successfully!");
+        }
+
+        // Load scripts from Firebase
+        db.ref('chats').on('value', (snapshot) => {
+            const listDiv = document.getElementById('chatList');
+            listDiv.innerHTML = '';
+            const data = snapshot.val();
+
+            if (data) {
+                Object.keys(data).forEach(key => {
+                    const item = document.createElement('div');
+                    item.className = 'chat-item';
+
+                    // Count sections
+                    const sectionCount = data[key].sections ? data[key].sections.length : 0;
+
+                    item.innerHTML = `
+                        <strong style="font-size: 16px; display: block; margin-bottom: 5px;">
+                            ${data[key].mainTitle}
+                        </strong>
+                        <small style="opacity: 0.7;">
+                            📄 ${sectionCount} sections • ${new Date(data[key].createdAt).toLocaleDateString()}
+                        </small>
+                        <span class="del-icon" onclick="deleteScript('${key}')">🗑️</span>
+                    `;
+
+                    item.onclick = (e) => {
+                        if (!e.target.classList.contains('del-icon')) {
+                            loadToPrompter(data[key]);
+                            document.getElementById('sidebar').classList.remove('open');
+                        }
+                    };
+
+                    listDiv.appendChild(item);
+                });
+            } else {
+                listDiv.innerHTML = '<p style="text-align: center; opacity: 0.7; padding: 20px;">No scripts yet. Create one!</p>';
+            }
+        });
+
+        function deleteScript(id) {
+            if (confirm("Are you sure you want to delete this script?")) {
+                db.ref('chats/' + id).remove();
+            }
+        }
+
+        // Load script to prompter
+        function loadToPrompter(scriptData) {
+            const display = document.getElementById('script-content');
+            let html = '';
+
+            const format = scriptData.format || 'combined';
+
+            if (format === 'separate') {
+                // Show all titles first
+                html += `<h1 style="color: var(--accent-color); margin-bottom: 40px;">${scriptData.mainTitle}</h1>`;
+                html += `<div class="title-mode">`;
+                scriptData.sections.forEach((s, index) => {
+                    html += `<div class="section-title">${index + 1}. ${s.title}</div>`;
+                });
+                html += `</div>`;
+
+                // Then show all details
+                html += `<div class="detail-mode" style="margin-top: 80px;">`;
+                scriptData.sections.forEach((s, index) => {
+                    html += `<div class="section-detail">${s.detail}</div>`;
+                });
+                html += `</div>`;
+            } else {
+                // Combined mode (default)
+                html += `<h1 style="color: var(--accent-color); margin-bottom: 40px;">${scriptData.mainTitle}</h1>`;
+                scriptData.sections.forEach((s, index) => {
+                    html += `
+                        <div style="margin: 50px 0; padding: 20px; background: rgba(0, 168, 132, 0.1); border-radius: 10px;">
+                            <h2 class="section-title" style="color: var(--accent-color); font-size: calc(var(--font-size) * 1.2px);">
+                                ${index + 1}. ${s.title}
+                            </h2>
+                            <div class="section-detail" style="font-size: calc(var(--font-size) * 1px); margin-top: 20px; line-height: 1.8;">
+                                ${s.detail}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            display.innerHTML = html;
+            document.getElementById('prompter-window').scrollTop = 0;
+        }
+
+        // Prompter Control Functions
+        function startWithCountdown() {
+            if (isScrolling) {
+                stopScroll();
+                return;
+            }
+
+            countdownDuration = parseInt(document.getElementById('countdownTime').value);
+
+            if (countdownDuration === 0) {
+                startScroll();
+                return;
+            }
+
+            const cd = document.getElementById('countdown');
+            cd.style.display = 'block';
+            let count = countdownDuration;
+            cd.innerText = count;
+
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    cd.innerText = count;
+                } else {
+                    clearInterval(timer);
+                    cd.style.display = 'none';
+                    startScroll();
+                }
+            }, 1000);
+        }
+
+        function startScroll() {
+            isScrolling = true;
+            document.getElementById('startBtn').innerText = "STOP";
+            document.getElementById('startBtn').style.background = "#ef5350";
+            autoHideControls();
+            animate();
+        }
+
+        function stopScroll() {
+            isScrolling = false;
+            document.getElementById('startBtn').innerText = "START";
+            document.getElementById('startBtn').style.background = "var(--accent-color)";
+            cancelAnimationFrame(currentAnimation);
+            showControls();
+        }
+
+        function animate() {
+            if (isScrolling) {
+                document.getElementById('prompter-window').scrollTop += scrollSpeed;
+                currentAnimation = requestAnimationFrame(animate);
+            }
+        }
+
+        // Control Auto-Hide
+        function autoHideControls() {
+            if (!fullscreenMode) return;
+
+            clearTimeout(autoHideTimer);
+            autoHideTimer = setTimeout(() => {
+                if (isScrolling) {
+                    document.getElementById('top-bar').classList.add('hide-bar');
+                }
+            }, 2000);
+        }
+
+        function showControls() {
+            document.getElementById('top-bar').classList.remove('hide-bar');
+            if (fullscreenMode) {
+                autoHideControls();
+            }
+        }
+
+        // Mouse/Touch events for showing controls
+        document.getElementById('mainContainer').addEventListener('mousemove', showControls);
+        document.getElementById('mainContainer').addEventListener('touchstart', showControls);
+
+        // Speed and Font Controls
+        function adjustSpeed(val) {
+            let s = document.getElementById('speedRange');
+            let newValue = parseInt(s.value) + val;
+            if (newValue < 1) newValue = 1;
+            if (newValue > 20) newValue = 20;
+            s.value = newValue;
+            scrollSpeed = newValue;
+            document.getElementById('speedValue').textContent = newValue;
+        }
+
+        function adjustFont(val) {
+            let f = document.getElementById('fontRange');
+            let newValue = parseInt(f.value) + val;
+            if (newValue < 20) newValue = 20;
+            if (newValue > 100) newValue = 100;
+            f.value = newValue;
+            document.getElementById('fontValue').textContent = newValue;
+            document.documentElement.style.setProperty('--font-size', newValue);
+        }
+
+        // Range Input Event Listeners
+        document.getElementById('speedRange').addEventListener('input', (e) => {
+            scrollSpeed = parseInt(e.target.value);
+            document.getElementById('speedValue').textContent = scrollSpeed;
+        });
+
+        document.getElementById('fontRange').addEventListener('input', (e) => {
+            const fontSize = parseInt(e.target.value);
+            document.getElementById('fontValue').textContent = fontSize;
+            document.documentElement.style.setProperty('--font-size', fontSize);
+        });
+
+        // Mirror Function
+        function toggleMirror() {
+            const content = document.getElementById('script-content');
+            if (content.style.transform === 'scaleX(-1)') {
+                content.style.transform = 'scaleX(1)';
+            } else {
+                content.style.transform = 'scaleX(-1)';
+            }
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                startWithCountdown();
+            }
+            if (e.code === 'Escape') {
+                if (fullscreenMode) toggleFullscreen();
+                document.getElementById('sidebar').classList.remove('open');
+                document.getElementById('settings-panel').classList.remove('open');
+            }
+        });
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', (e) => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+
+            if (sidebar.classList.contains('open') &&
+                !sidebar.contains(e.target) &&
+                !sidebarToggle.contains(e.target)) {
+                sidebar.classList.remove('open');
+            }
+        });
+
+        // Initialize
+        window.addEventListener('load', () => {
+            // Load saved preferences
+            const savedCountdown = localStorage.getItem('teleprompter_countdown');
+            if (savedCountdown) {
+                document.getElementById('countdownTime').value = savedCountdown;
+                countdownDuration = parseInt(savedCountdown);
+            }
+
+            const savedMode = localStorage.getItem('teleprompter_displayMode');
+            if (savedMode) {
+                document.getElementById('displayMode').value = savedMode;
+                displayMode = savedMode;
+                changeDisplayMode();
+            }
+
+            // Save preferences when changed
+            document.getElementById('countdownTime').addEventListener('change', function () {
+                localStorage.setItem('teleprompter_countdown', this.value);
+            });
+
+            document.getElementById('displayMode').addEventListener('change', function () {
+                localStorage.setItem('teleprompter_displayMode', this.value);
+            });
+        });
+
+    </script>
+</body>
+
+</html>
