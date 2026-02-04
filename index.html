@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="bn">
 
@@ -11,7 +12,7 @@
 
     <style>
         :root {
-            --bg-color: #6ef500;
+            --bg-color: #1d1f20;
             --sidebar-color: #202c33;
             --accent-color: #00a884;
             --title-color: #ffd519;
@@ -156,7 +157,6 @@
             top: 0;
             left: 0;
             width: 100%;
-            padding: 15px;
             background: rgba(32, 44, 51, 0.95);
             display: flex;
             flex-wrap: wrap;
@@ -167,6 +167,7 @@
             transition: transform 0.5s, opacity 0.5s;
             backdrop-filter: blur(10px);
             border-bottom: 1px solid #374045;
+            color: var(--text-color);
         }
 
         .hide-bar {
@@ -250,6 +251,7 @@
             scrollbar-width: none;
             text-align: center;
             transition: padding 0.3s;
+            background-color: var(--bg-color);
         }
 
         #prompter-window::-webkit-scrollbar {
@@ -259,9 +261,7 @@
         #script-content {
             font-size: calc(var(--font-size) * 1px);
             line-height: 1.6;
-            white-space: pre-wrap;
             transition: all 0.3s;
-            max-width: 1200px;
             margin: 0 auto;
         }
 
@@ -365,15 +365,14 @@
         /* Script Display Modes */
         .title-mode .section-title {
             font-size: calc(var(--font-size) * 1.2px);
-            color: var(--section-color);
-            margin: 40px 0 20px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid rgba(0, 168, 132, 0.3);
+            color: var(--text-color);
+            margin: 5px 0 5px 0;
+            padding-bottom: 3px;
         }
 
         .detail-mode .section-detail {
             font-size: calc(var(--font-size) * 1px);
-            margin: 30px 0;
+            margin: 10px 0;
             line-height: 1.8;
             border: white 0.5px dotted;
         }
@@ -399,8 +398,7 @@
 
         .settings-toggle {
             position: fixed;
-            top: 20px;
-            right: 20px;
+            right: 50px;
             background: var(--accent-color);
             color: white;
             border: none;
@@ -436,7 +434,6 @@
             }
 
             #top-bar {
-                padding: 10px;
                 gap: 10px;
             }
 
@@ -465,12 +462,10 @@
 
 <body>
 
-    <button class="sidebar-toggle" id="sidebarToggle">☰</button>
-    <button class="settings-toggle" id="settingsToggle">⚙️</button>
 
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h2 style="color: var(--accent-color);">📁 Script Library</h2>
+            <h2 style="color: var(--text-color);">📁 Script Library</h2>
             <button class="control-btn" onclick="openModal()">+ New Script</button>
         </div>
         <div class="chat-list" id="chatList">
@@ -563,6 +558,8 @@
 
     <div class="main-container" id="mainContainer">
         <div id="top-bar">
+            
+            <button class="sidebar-toggle" id="sidebarToggle">☰</button>
             <button class="control-btn" id="startBtn" onclick="startWithCountdown()">START</button>
 
             <div
@@ -585,12 +582,13 @@
 
             <button class="control-btn" style="background:#555" onclick="toggleMirror()">🪞 Mirror</button>
             <button class="control-btn" style="background:#666" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+            <button class="settings-toggle" id="settingsToggle">⚙️</button>
         </div>
 
         <div class="guide-line"></div>
         <div id="prompter-window">
             <div id="script-content">
-                <h1 style="color: var(--accent-color);">Welcome to WhatsApp Style Teleprompter</h1>
+                <h1 style="color: var(--text-color);">Welcome to Teleprompter</h1>
                 <p style="font-size: 40px; opacity: 0.8; margin-top: 30px;">
                     Select a script from the sidebar or create a new one to get started.
                 </p>
@@ -602,7 +600,7 @@
 
     <div id="modal-overlay">
         <div class="modal">
-            <h2 style="color: var(--accent-color);">➕ Create New Script</h2>
+            <h2 style="color: var(--text-color);">➕ Create New Script</h2>
             <input type="text" id="mainTitle" placeholder="📝 Main Project Title">
 
             <div style="margin: 20px 0;">
@@ -741,16 +739,17 @@
             console.log(displayMode)
             // Update display based on selected mode
             scriptContent.className = displayMode + '-mode';
-            if(displayMode === "combined"){
-                return
+            if (displayMode === "combined") {
+                document.querySelectorAll(".section-detail").forEach(el => el.style.display = "block");
+                document.querySelectorAll(".section-title").forEach(el => el.style.display = "block");
             }
-            else if(displayMode === "titles-only"){
-                document.getElementsByClassName("title-mode").style.display="block";
-                document.getElementsByClassName("detail-mode").style.display="none";                
+            else if (displayMode === "titles-only") {
+                document.querySelectorAll(".section-detail").forEach(el => el.style.display = "none");
+                document.querySelectorAll(".section-title").forEach(el => el.style.display = "block");
             }
-            else if(displayMode === "details-only"){
-                document.getElementsByClassName("title-mode").style.display="none";
-                document.getElementsByClassName("detail-mode").style.display="block";                
+            else if (displayMode === "details-only") {
+                document.querySelectorAll(".section-title").forEach(el => el.style.display = "none");
+                document.querySelectorAll(".section-detail").forEach(el => el.style.display = "block");
             }
         }
 
@@ -865,7 +864,7 @@
 
             if (format === 'separate') {
                 // Show all titles first
-                html += `<h1 style="color: var(--accent-color); margin-bottom: 40px;">${scriptData.mainTitle}</h1>`;
+                html += `<h1 style="color: var(--text-color); margin-bottom: 40px;">${scriptData.mainTitle}</h1>`;
                 html += `<div class="title-mode">`;
                 scriptData.sections.forEach((s, index) => {
                     html += `<div class="section-title">${index + 1}. ${s.title}</div>`;
@@ -880,11 +879,11 @@
                 html += `</div>`;
             } else {
                 // Combined mode (default)
-                html += `<h1 style="color: var(--accent-color); margin-bottom: 40px;">${scriptData.mainTitle}</h1>`;
+                html += `<h1 style="color: var(--text-color); margin-bottom: 40px;">${scriptData.mainTitle}</h1>`;
                 scriptData.sections.forEach((s, index) => {
                     html += `
-                        <div style="margin: 50px 0; padding: 20px; background: rgba(0, 168, 132, 0.1); border-radius: 10px;">
-                            <h2 class="section-title" style="color: var(--accent-color); font-size: calc(var(--font-size) * 1.2px);">
+                        <div style="margin: 50px 0; padding: 20px; background: transparent; border-radius: 10px;">
+                            <h2 class="section-title" style="color: var(--text-color); font-size: calc(var(--font-size) * 1.2px);">
                                 ${index + 1}. ${s.title}
                             </h2>
                             <div class="section-detail" style="font-size: calc(var(--font-size) * 1px); margin-top: 20px; line-height: 1.8;">
@@ -907,6 +906,7 @@
             }
 
             countdownDuration = parseInt(document.getElementById('countdownTime').value);
+            
 
             if (countdownDuration === 0) {
                 startScroll();
@@ -931,6 +931,7 @@
         }
 
         function startScroll() {
+            toggleFullscreen();
             isScrolling = true;
             document.getElementById('startBtn').innerText = "STOP";
             document.getElementById('startBtn').style.background = "#ef5350";
@@ -963,6 +964,7 @@
                     document.getElementById('top-bar').classList.add('hide-bar');
                 }
             }, 2000);
+            toggleFullscreen()
         }
 
         function showControls() {
@@ -970,6 +972,7 @@
             if (fullscreenMode) {
                 autoHideControls();
             }
+
         }
 
         // Mouse/Touch events for showing controls
